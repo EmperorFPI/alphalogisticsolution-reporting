@@ -1,4 +1,31 @@
-import { Pool } from 'pg';
-if(!process.env.DATABASE_URL){throw new Error('DATABASE_URL not set');}
-export const pool=new Pool({connectionString:process.env.DATABASE_URL,max:5,idleTimeoutMillis:10000});
-export async function query(text:string,params?:any[]){const c=await pool.connect();try{const r=await c.query(text,params);return {rows:r.rows};}finally{c.release();}}
+// src/lib/db.ts
+
+import { Pool, QueryResultRow } from 'pg';
+
+let _pool: Pool | null = null;
+
+function getConnectionString(): string {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL not set');
+  return url;
+}
+
+export function getPool(): Pool {
+  if (!_pool) {
+    _pool = new Pool({
+      connectionString: getConnectionString(),
+      max: 5,
+      idleTimeoutMillis: 10_000,
+    });
+  }
+  return _pool;
+}
+
+export async function query<T extends QueryResultRow = QueryResultRow>(
+  text: string,
+  params?: any[],
+): Promise<{ rows: T[] }> {
+  const pool = getPool();
+  const res = await pool.query<T>(text, params);
+  return { rows: res.rows as T[] };
+}
