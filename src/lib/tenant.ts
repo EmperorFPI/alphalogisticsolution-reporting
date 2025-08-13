@@ -1,0 +1,3 @@
+import { headers } from 'next/headers';import { query } from './db';
+export async function getTenantFromRequest(){const h=headers();const forced=h.get('x-tenant');if(forced) return forced.toLowerCase();const host=h.get('host')||'';const base=process.env.BASE_DOMAIN||'';if(base && host.endsWith(base)){const sub=host.replace('.'+base,'');if(sub && sub!==host){return sub.toLowerCase();}}return 'default';}
+export async function ensureAccount(slug:string){const name=slug.charAt(0).toUpperCase()+slug.slice(1);const ex=await query('SELECT id FROM accounts WHERE slug=$1',[slug]);if(ex.rows[0]) return ex.rows[0].id;const ins=await query('INSERT INTO accounts (name, slug) VALUES ($1,$2) RETURNING id',[name,slug]);return ins.rows[0].id;}

@@ -1,0 +1,1 @@
+import Link from 'next/link';export default function Home(){return(<main className='container'><h1>Production Reports (Multi-tenant)</h1><ul><li><Link href='/dashboard'>Dashboard</Link></li><li><Link href='/upload'>Manual Upload</Link></li></ul></main>);}
