@@ -7,6 +7,8 @@ import { query } from '@/lib/db';
 
 async function insertChunk(accountId: number, rows: UnifiedRow[]) {
 	if (!rows.length) return;
+	// Ensure accountId is a number (Postgres bigint)
+	const acctId = typeof accountId === 'string' ? Number(accountId) : accountId;
 	const cols = UNIFIED_COLUMNS;
 	const colList = cols.map(c => `"${c}"`).join(', ');
 	let text = 'INSERT INTO production (account_id, ' + colList + ', source_file) VALUES ';
@@ -15,7 +17,7 @@ async function insertChunk(accountId: number, rows: UnifiedRow[]) {
 		if (i) text += ', ';
 		const offs = i * (cols.length + 1);
 		text += `($${offs + 1}, ` + cols.map((_, j) => `$${offs + 2 + j}`).join(', ') + `, $${offs + cols.length + 2})`;
-		params.push(accountId, ...cols.map(c => (r as any)[c] ?? null), r.source_file ?? 'upload');
+		params.push(acctId, ...cols.map(c => (r as any)[c] ?? null), r.source_file ?? 'upload');
 	});
 	await query(text, params);
 }
