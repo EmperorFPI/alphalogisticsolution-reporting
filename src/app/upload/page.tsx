@@ -20,14 +20,16 @@ export default function Upload() {
 			body: fd
 		});
 			const data = await res.json();
-			if (data.ok) {
-				alert('Report Successful!');
-				router.push('/dashboard');
-			} else if (data.message && data.message.includes('No new rows inserted')) {
-				alert('No new rows inserted: all rows were duplicates or skipped.');
-			} else {
-				alert('Upload failed: ' + (data.message || 'Unknown error'));
-			}
+				if (data.ok) {
+					alert('Report Successful!');
+					router.push('/dashboard');
+				} else if (data.message && data.message.includes('No new rows inserted')) {
+					alert('No new rows inserted: all rows were duplicates or skipped.');
+				} else if (data.errors && data.errors.length > 0) {
+					alert('Upload failed: ' + data.errors[0]);
+				} else {
+					alert('Upload failed: ' + (data.message || 'Unknown error'));
+				}
 	}
 
 	return (
