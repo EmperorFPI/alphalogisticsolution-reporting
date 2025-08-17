@@ -9,26 +9,27 @@ import { query } from '@/lib/db';
 
 // Insert all rows in one batch (if possible)
 async function insertRows(accountId: number, rows: UnifiedRow[], sourceFile: string) {
-		if (!rows.length) return 0;
-		// Force accountId to number for Postgres
-		const acctId = typeof accountId === 'string' ? Number(accountId) : accountId;
-		if (typeof acctId !== 'number' || !Number.isFinite(acctId)) {
-			throw new Error(`accountId is not a valid number: ${acctId} (type: ${typeof acctId})`);
-		}
-		// Uncomment for debugging:
-		// console.log('DEBUG accountId type:', typeof acctId, acctId);
-		const cols = UNIFIED_COLUMNS;
-		const colList = cols.map(c => `"${c}"`).join(', ');
-		let text = `INSERT INTO production (account_id, ${colList}, source_file) VALUES `;
-		const params: any[] = [];
-		rows.forEach((r, i) => {
-			if (i) text += ', ';
-			const offs = i * (cols.length + 1);
-			text += `($${offs + 1}, ` + cols.map((_, j) => `$${offs + 2 + j}`).join(', ') + `, $${offs + cols.length + 2})`;
-			params.push(acctId, ...cols.map(c => (r as any)[c] ?? null), sourceFile);
-		});
-		await query(text, params);
-		return rows.length;
+			if (!rows.length) return 0;
+			// Force accountId to number for Postgres
+			const acctId = typeof accountId === 'string' ? Number(accountId) : accountId;
+			if (typeof acctId !== 'number' || !Number.isFinite(acctId)) {
+				throw new Error(`accountId is not a valid number: ${acctId} (type: ${typeof acctId})`);
+			}
+			const cols = UNIFIED_COLUMNS;
+			const colList = cols.map(c => `"${c}"`).join(', ');
+			let text = `INSERT INTO production (account_id, ${colList}, source_file) VALUES `;
+			const params: any[] = [];
+			rows.forEach((r, i) => {
+				if (i) text += ', ';
+				const offs = i * (cols.length + 1);
+				text += `($${offs + 1}, ` + cols.map((_, j) => `$${offs + 2 + j}`).join(', ') + `, $${offs + cols.length + 2})`;
+				params.push(acctId, ...cols.map(c => (r as any)[c] ?? null), sourceFile);
+			});
+			// Debug output for troubleshooting
+			console.log('DEBUG SQL:', text);
+			console.log('DEBUG PARAMS:', params.map((p, i) => `[${i}]: ${p} (${typeof p})`).join(', '));
+			await query(text, params);
+			return rows.length;
 }
 
 export async function POST(req: NextRequest) {
