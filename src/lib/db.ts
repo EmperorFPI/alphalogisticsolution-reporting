@@ -1,6 +1,9 @@
 // src/lib/db.ts
 
-import { Pool, QueryResultRow } from 'pg';
+import { Pool, QueryResultRow, types } from 'pg';
+
+// Parse BIGINT (OID 20) as JS number
+types.setTypeParser(20, val => val === null ? null : Number(val));
 
 let _pool: Pool | null = null;
 
