@@ -17,20 +17,22 @@ async function insertRows(accountId: number, rows: UnifiedRow[], sourceFile: str
 			}
 				const cols = UNIFIED_COLUMNS;
 				const colList = cols.map(c => `"${c}"`).join(', ');
-				let text = `INSERT INTO production (account_id, ${colList}, source_file) VALUES `;
+					let text = `INSERT INTO production (account_id, ${colList}, source_file) VALUES `;
 				const params: any[] = [];
 				const paramCountPerRow = cols.length + 2; // account_id + columns + source_file
-				rows.forEach((r, i) => {
-					if (i) text += ', ';
-					const offs = i * paramCountPerRow;
-					text += `($${offs + 1}, ` + cols.map((_, j) => `$${offs + 2 + j}`).join(', ') + `, $${offs + cols.length + 2})`;
-					params.push(acctId, ...cols.map(c => (r as any)[c] ?? null), sourceFile);
-				});
-			// Debug output for troubleshooting
-			console.log('DEBUG SQL:', text);
-			console.log('DEBUG PARAMS:', params.map((p, i) => `[${i}]: ${p} (${typeof p})`).join(', '));
-			await query(text, params);
-			return rows.length;
+					rows.forEach((r, i) => {
+						if (i) text += ', ';
+						const offs = i * paramCountPerRow;
+						text += `($${offs + 1}, ` + cols.map((_, j) => `$${offs + 2 + j}`).join(', ') + `, $${offs + cols.length + 2})`;
+						params.push(acctId, ...cols.map(c => (r as any)[c] ?? null), sourceFile);
+					});
+					// Add ON CONFLICT clause to skip duplicates
+					text += ' ON CONFLICT (account_id, "Date", "Field Name / Location") DO NOTHING';
+					// Debug output for troubleshooting
+					console.log('DEBUG SQL:', text);
+					console.log('DEBUG PARAMS:', params.map((p, i) => `[${i}]: ${p} (${typeof p})`).join(', '));
+					await query(text, params);
+					return rows.length;
 }
 
 export async function POST(req: NextRequest) {
