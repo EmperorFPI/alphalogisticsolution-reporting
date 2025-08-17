@@ -19,13 +19,15 @@ export default function Upload() {
 			headers: { 'x-inbound-secret': secret },
 			body: fd
 		});
-		const data = await res.json();
-		if (data.ok) {
-			alert('Report Successful!');
-			router.push('/dashboard');
-		} else {
-			alert('Upload failed: ' + (data.message || 'Unknown error'));
-		}
+			const data = await res.json();
+			if (data.ok) {
+				alert('Report Successful!');
+				router.push('/dashboard');
+			} else if (data.message && data.message.includes('No new rows inserted')) {
+				alert('No new rows inserted: all rows were duplicates or skipped.');
+			} else {
+				alert('Upload failed: ' + (data.message || 'Unknown error'));
+			}
 	}
 
 	return (

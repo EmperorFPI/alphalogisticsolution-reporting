@@ -91,9 +91,11 @@ export async function POST(req: NextRequest) {
 		}
 	}
 
-	if (inserted > 0) {
-		return NextResponse.json({ ok: true, tenant: accountSlug, inserted, message: 'Upload successful.', errors });
-	} else {
-		return NextResponse.json({ ok: false, tenant: accountSlug, inserted, message: 'Upload failed.', errors });
-	}
+		if (inserted > 0) {
+			return NextResponse.json({ ok: true, tenant: accountSlug, inserted, message: 'Upload successful.', errors });
+		} else if (errors.length > 0) {
+			return NextResponse.json({ ok: false, tenant: accountSlug, inserted, message: 'Upload failed.', errors });
+		} else {
+			return NextResponse.json({ ok: false, tenant: accountSlug, inserted, message: 'No new rows inserted (all duplicates or skipped).', errors });
+		}
 }
