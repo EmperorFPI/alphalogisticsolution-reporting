@@ -27,7 +27,8 @@ export async function POST(req: NextRequest) {
 	}
 	const url = new URL(req.url);
 	const accountSlug = url.searchParams.get('account') || req.headers.get('x-tenant') || 'default';
-	const accountId = await ensureAccount(accountSlug);
+	let accountId = await ensureAccount(accountSlug);
+	if (typeof accountId === 'string') accountId = Number(accountId);
 	const form = await req.formData();
 	const files: File[] = [];
 	for (const [, v] of form.entries()) {
