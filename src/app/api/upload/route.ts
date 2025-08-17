@@ -1,3 +1,5 @@
+
+// Robust Excel/CSV upload endpoint for production table
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
@@ -5,32 +7,40 @@ import { parseCsv, parseXlsx, UNIFIED_COLUMNS, type UnifiedRow } from '@/lib/par
 import { ensureAccount } from '@/lib/tenant';
 import { query } from '@/lib/db';
 
-async function insertChunk(accountId: number, rows: UnifiedRow[]) {
-	if (!rows.length) return;
-	// Ensure accountId is a number (Postgres bigint)
-	const acctId = typeof accountId === 'string' ? Number(accountId) : accountId;
+// Insert all rows in one batch (if possible)
+async function insertRows(accountId: number, rows: UnifiedRow[], sourceFile: string) {
+	if (!rows.length) return 0;
 	const cols = UNIFIED_COLUMNS;
 	const colList = cols.map(c => `"${c}"`).join(', ');
-	let text = 'INSERT INTO production (account_id, ' + colList + ', source_file) VALUES ';
+	let text = `INSERT INTO production (account_id, ${colList}, source_file) VALUES `;
 	const params: any[] = [];
 	rows.forEach((r, i) => {
 		if (i) text += ', ';
 		const offs = i * (cols.length + 1);
 		text += `($${offs + 1}, ` + cols.map((_, j) => `$${offs + 2 + j}`).join(', ') + `, $${offs + cols.length + 2})`;
-		params.push(acctId, ...cols.map(c => (r as any)[c] ?? null), r.source_file ?? 'upload');
+		params.push(accountId, ...cols.map(c => (r as any)[c] ?? null), sourceFile);
 	});
 	await query(text, params);
+	return rows.length;
 }
 
 export async function POST(req: NextRequest) {
+	// Auth
 	const secret = req.headers.get('x-inbound-secret') || '';
 	if (!process.env.INBOUND_SHARED_SECRET || secret !== process.env.INBOUND_SHARED_SECRET) {
-		return NextResponse.json({ error: 'unauthorized', message: 'Upload failed: unauthorized access.' }, { status: 401 });
+		return NextResponse.json({ ok: false, error: 'unauthorized', message: 'Upload failed: unauthorized access.' }, { status: 401 });
 	}
+
+	// Tenant/account
 	const url = new URL(req.url);
 	const accountSlug = url.searchParams.get('account') || req.headers.get('x-tenant') || 'default';
 	let accountId = await ensureAccount(accountSlug);
 	if (typeof accountId === 'string') accountId = Number(accountId);
+	if (!Number.isFinite(accountId)) {
+		return NextResponse.json({ ok: false, error: 'Invalid accountId', message: 'Upload failed: invalid tenant.' }, { status: 400 });
+	}
+
+	// Parse form
 	const form = await req.formData();
 	const files: File[] = [];
 	for (const [, v] of form.entries()) {
@@ -39,22 +49,40 @@ export async function POST(req: NextRequest) {
 			if (/\.(xlsx|csv)$/.test(name)) files.push(v);
 		}
 	}
+	if (!files.length) {
+		return NextResponse.json({ ok: false, error: 'No file', message: 'No Excel or CSV file uploaded.' }, { status: 400 });
+	}
+
 	let inserted = 0;
-	try {
-		for (const file of files) {
+	let errors: string[] = [];
+	for (const file of files) {
+		try {
 			const buf = Buffer.from(await file.arrayBuffer());
 			const name = file.name || 'upload';
 			let rows: UnifiedRow[] = [];
 			if (/\.xlsx$/i.test(name)) rows = await parseXlsx(buf, name);
 			else if (/\.csv$/i.test(name)) rows = parseCsv(buf, name);
-			while (rows.length) {
-				const chunk = rows.splice(0, 200);
-				await insertChunk(accountId, chunk);
-				inserted += chunk.length;
+			if (!rows.length) {
+				errors.push(`${name}: No valid rows found.`);
+				continue;
 			}
+			// Validate and clean rows
+			rows = rows.map(r => {
+				const cleaned: any = {};
+				for (const col of UNIFIED_COLUMNS) cleaned[col] = r[col] ?? null;
+				cleaned["Date"] = cleaned["Date"] ? cleaned["Date"] : null;
+				cleaned["source_file"] = name;
+				return cleaned;
+			});
+			inserted += await insertRows(accountId, rows, name);
+		} catch (e: any) {
+			errors.push(`${file.name}: ${e?.message || e}`);
 		}
-		return NextResponse.json({ ok: true, tenant: accountSlug, inserted, message: 'Upload successful.' });
-	} catch (error: any) {
-		return NextResponse.json({ ok: false, tenant: accountSlug, inserted, message: 'Upload failed.', error: error?.message || error?.toString() });
+	}
+
+	if (inserted > 0) {
+		return NextResponse.json({ ok: true, tenant: accountSlug, inserted, message: 'Upload successful.', errors });
+	} else {
+		return NextResponse.json({ ok: false, tenant: accountSlug, inserted, message: 'Upload failed.', errors });
 	}
 }
