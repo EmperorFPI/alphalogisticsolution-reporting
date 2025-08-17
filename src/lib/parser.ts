@@ -51,12 +51,14 @@ export function parseCsv(buf: Buffer, filename: string): UnifiedRow[] {
   const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
   if (!lines.length) return [];
 
-  const header = lines[0].split(',').map(s => s.trim());
+  // Detect delimiter: comma or tab
+  const delimiter = lines[0].includes('\t') ? '\t' : ',';
+  const header = lines[0].split(delimiter).map(s => s.trim());
   const idx = (name: string) => header.indexOf(name);
 
   const out: UnifiedRow[] = [];
   for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(','); // NOTE: for quoted CSV, swap to a real CSV parser later
+    const cols = lines[i].split(delimiter);
     const row: any = {};
     for (const name of UNIFIED_COLUMNS) {
       const j = idx(name);
